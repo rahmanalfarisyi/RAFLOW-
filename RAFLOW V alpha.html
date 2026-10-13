@@ -1,0 +1,2227 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAFLOW v alpha — Visual Pipe Network Simulator</title>
+
+<!-- Three.js v0.128 (stable global build) -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<!-- Chart.js & SheetJS -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+:root{
+  --bg-dark:#0f172a; --bg-med:#1e293b; --bg-light:#334155; --bg-card:#1e293b;
+  --accent:#06b6d4; --accent-hover:#22d3ee; --accent2:#8b5cf6;
+  --success:#10b981; --warning:#f59e0b; --danger:#ef4444;
+  --text:#f1f5f9; --muted:#94a3b8; --border:#334155;
+  --canvas-bg:#0b1220; --grid:#1e293b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+  background:var(--bg-dark); color:var(--text);
+  overflow:hidden;
+}
+header{
+  height:64px;background:var(--bg-med);display:flex;align-items:center;
+  padding:0 20px;border-bottom:1px solid var(--border);gap:12px;
+}
+.logo{
+  font-size:26px;color:var(--accent);font-weight:bold;
+  text-shadow:0 0 20px rgba(6,182,212,.5);
+  animation:pulse 2.5s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{text-shadow:0 0 20px rgba(6,182,212,.5)}50%{text-shadow:0 0 30px rgba(6,182,212,.9)}}
+.title-box h1{font-size:15px;font-weight:700;letter-spacing:.5px}
+.title-box p{font-size:11px;color:var(--muted);margin-top:1px}
+.header-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.view-toggle{
+  display:flex;background:var(--bg-light);border:1px solid var(--border);
+  border-radius:8px;padding:3px;gap:2px;
+}
+.view-toggle button{
+  padding:6px 16px;border:none;background:transparent;color:var(--muted);
+  font-size:11px;font-weight:700;cursor:pointer;border-radius:6px;
+  font-family:inherit;transition:all .2s;letter-spacing:.5px;
+}
+.view-toggle button.active{background:var(--accent);color:#000;
+  box-shadow:0 2px 8px rgba(6,182,212,.5)}
+.view-toggle button:hover:not(.active){color:var(--text);background:rgba(6,182,212,.1)}
+.lang-toggle{
+  display:flex;background:var(--bg-light);border:1px solid var(--border);
+  border-radius:8px;padding:3px;gap:2px;
+}
+.lang-toggle button{
+  padding:6px 12px;border:none;background:transparent;color:var(--muted);
+  font-size:11px;font-weight:700;cursor:pointer;border-radius:6px;
+  font-family:inherit;transition:all .2s;
+}
+.lang-toggle button.active{background:var(--accent2);color:#fff;
+  box-shadow:0 2px 8px rgba(139,92,246,.5)}
+.lang-toggle button:hover:not(.active){color:var(--text);background:rgba(139,92,246,.1)}
+.btn{
+  background:var(--accent);color:#000;border:none;border-radius:6px;
+  padding:8px 14px;font-weight:600;font-size:12px;cursor:pointer;
+  transition:all .18s ease;font-family:inherit;
+}
+.btn:hover{background:var(--accent-hover);transform:translateY(-1px);
+  box-shadow:0 4px 14px rgba(6,182,212,.4)}
+.btn.ghost{background:var(--bg-light);color:var(--text);border:1px solid var(--border)}
+.btn.ghost:hover{background:var(--border);box-shadow:none}
+.btn.success{background:var(--success);color:#000}
+.btn.success:hover{background:#34d399;box-shadow:0 4px 14px rgba(16,185,129,.4)}
+.btn.danger{background:var(--danger);color:#fff}
+.btn.danger:hover{background:#f87171;box-shadow:0 4px 14px rgba(239,68,68,.4)}
+.btn.violet{background:var(--accent2);color:#fff}
+.btn.violet:hover{background:#a78bfa;box-shadow:0 4px 14px rgba(139,92,246,.4)}
+.app{
+  display:grid;height:calc(100vh - 64px);
+  grid-template-columns:340px 1fr;
+  grid-template-rows:76px 1fr 200px 30px;
+  grid-template-areas:
+    "kpi kpi"
+    "left main"
+    "left bottom"
+    "status status";
+  gap:8px;padding:10px;
+}
+.kpi-bar{grid-area:kpi;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kpi-card{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:8px;
+  padding:8px 14px;position:relative;overflow:hidden;
+  transition:transform .2s,box-shadow .2s;
+}
+.kpi-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.kpi-card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px}
+.kpi-card.cyan::before{background:var(--accent)}
+.kpi-card.green::before{background:var(--success)}
+.kpi-card.violet::before{background:var(--accent2)}
+.kpi-card.amber::before{background:var(--warning)}
+.kpi-title{font-size:9px;color:var(--muted);letter-spacing:1px;font-weight:700;margin-bottom:2px}
+.kpi-value{font-size:22px;font-weight:800;letter-spacing:-.5px}
+.kpi-card.cyan .kpi-value{color:var(--accent)}
+.kpi-card.green .kpi-value{color:var(--success)}
+.kpi-card.violet .kpi-value{color:var(--accent2)}
+.kpi-card.amber .kpi-value{color:var(--warning)}
+.left-panel{grid-area:left;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.card{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:8px;
+  padding:10px;display:flex;flex-direction:column;
+}
+.card-title{
+  font-size:10px;color:var(--accent);font-weight:700;letter-spacing:1px;
+  margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);
+}
+.mode-btn{
+  display:flex;align-items:center;gap:8px;padding:9px 12px;margin-bottom:5px;
+  background:var(--bg-light);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);font-size:12px;font-weight:600;cursor:pointer;
+  transition:all .15s;
+}
+.mode-btn:hover{background:var(--border)}
+.mode-btn.active{background:var(--accent);color:#000;border-color:var(--accent);
+  box-shadow:0 0 14px rgba(6,182,212,.5)}
+.prop-form{display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;padding-right:4px}
+.field{display:flex;flex-direction:column;gap:2px}
+.field label{font-size:10px;color:var(--muted);font-weight:600}
+.field input,.field select{
+  background:var(--bg-light);color:var(--text);border:1px solid var(--border);
+  border-radius:5px;padding:6px 9px;font-size:12px;font-family:inherit;
+  transition:all .15s;
+}
+.field input:focus,.field select:focus{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(6,182,212,.2);
+}
+.check-row{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text);padding:4px 0}
+.check-row input{width:14px;height:14px;accent-color:var(--accent)}
+.btn-row{display:flex;gap:6px}
+.btn-row .btn{flex:1;padding:8px}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--bg-med)}
+::-webkit-scrollbar-thumb{background:var(--bg-light);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--border)}
+.main-area{grid-area:main;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.banner{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:8px;
+  padding:8px 14px;font-size:12px;font-style:italic;color:var(--accent);
+}
+.canvas-wrap{
+  flex:1;background:var(--canvas-bg);border:1px solid var(--border);
+  border-radius:8px;overflow:hidden;position:relative;
+}
+#pipeCanvas{display:block;width:100%;height:100%;cursor:crosshair}
+#threeCanvas{display:block;width:100%;height:100%;cursor:grab}
+#threeCanvas:active{cursor:grabbing}
+.view-3d-overlay{position:absolute;top:14px;left:14px;z-index:10;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.view-3d-badge{
+  background:rgba(15,23,42,0.9);border:1px solid var(--accent);border-radius:8px;
+  padding:8px 12px;font-size:10px;color:var(--accent);font-weight:700;
+  backdrop-filter:blur(8px);pointer-events:auto;box-shadow:0 4px 14px rgba(0,0,0,.4);
+}
+.view-3d-controls{position:absolute;bottom:14px;right:14px;z-index:10;display:flex;flex-direction:column;gap:6px}
+.view-3d-btn{
+  background:rgba(15,23,42,0.9);border:1px solid var(--border);border-radius:8px;
+  padding:8px 12px;font-size:11px;color:var(--text);font-weight:600;
+  cursor:pointer;backdrop-filter:blur(8px);transition:all .18s;font-family:inherit;
+  min-width:140px;box-shadow:0 4px 14px rgba(0,0,0,.4);text-align:left;
+}
+.view-3d-btn:hover{background:var(--accent);color:#000;border-color:var(--accent);transform:translateX(-3px)}
+.view-3d-legend{
+  position:absolute;top:14px;right:14px;z-index:10;
+  background:rgba(15,23,42,0.9);border:1px solid var(--border);border-radius:8px;
+  padding:10px 12px;font-size:10px;color:var(--muted);backdrop-filter:blur(8px);
+  box-shadow:0 4px 14px rgba(0,0,0,.4);min-width:160px;
+}
+.view-3d-legend-title{color:var(--accent);font-weight:700;letter-spacing:.8px;margin-bottom:6px;font-size:9px}
+.legend-item{display:flex;align-items:center;gap:8px;padding:2px 0}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;box-shadow:0 0 6px currentColor}
+.legend-gradient{height:10px;border-radius:5px;margin:6px 0 4px;background:linear-gradient(90deg,#10b981,#f59e0b,#ef4444)}
+.bottom{grid-area:bottom;display:grid;grid-template-columns:1.4fr 1fr;gap:10px;overflow:hidden}
+.table-wrap{overflow:auto;flex:1;border-radius:6px;background:var(--bg-med)}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{
+  background:var(--bg-light);color:var(--accent);font-weight:700;letter-spacing:.4px;
+  padding:8px 6px;text-align:center;position:sticky;top:0;z-index:2;
+  border-bottom:1px solid var(--border);
+}
+tbody td{padding:6px;text-align:center;border-bottom:1px solid var(--bg-light);color:var(--text)}
+tbody tr{cursor:pointer;transition:background .15s}
+tbody tr:hover{background:var(--bg-light)}
+tbody tr.selected{background:rgba(6,182,212,.2);border-left:3px solid var(--accent)}
+.plot-wrap{position:relative;flex:1;min-height:0}
+.status-bar{
+  grid-area:status;background:var(--bg-med);border:1px solid var(--border);
+  border-radius:6px;padding:6px 14px;font-size:11px;color:var(--muted);
+  display:flex;align-items:center;gap:8px;
+}
+.status-bar.success{color:var(--success)}
+.status-bar.warning{color:var(--warning)}
+.status-bar.error{color:var(--danger)}
+.toast-container{position:fixed;top:80px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px}
+.toast{
+  background:var(--bg-med);border-left:4px solid var(--accent);border-radius:6px;
+  padding:12px 18px;min-width:250px;font-size:12px;color:var(--text);
+  box-shadow:0 10px 30px rgba(0,0,0,.5);animation:slideIn .3s ease;
+  display:flex;align-items:center;gap:10px;
+}
+.toast.success{border-left-color:var(--success)}
+.toast.warning{border-left-color:var(--warning)}
+.toast.error{border-left-color:var(--danger)}
+@keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes slideOut{to{transform:translateX(400px);opacity:0}}
+.toast.hide{animation:slideOut .3s ease forwards}
+.unsaved-dot{color:var(--danger);margin-left:6px;font-size:14px}
+.loading-3d{
+  position:absolute;inset:0;background:rgba(11,18,32,0.9);z-index:20;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:16px;color:var(--accent);
+}
+.loading-3d .spinner{
+  width:48px;height:48px;border:3px solid rgba(6,182,212,0.2);
+  border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-3d .msg{font-size:13px;font-weight:600;letter-spacing:.5px}
+.loading-3d .sub{font-size:11px;color:var(--muted)}
+.error-3d{
+  position:absolute;inset:0;background:rgba(11,18,32,0.95);z-index:20;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;color:var(--danger);padding:40px;text-align:center;
+}
+.error-3d .icon{font-size:48px}
+.error-3d .title{font-size:16px;font-weight:700}
+.error-3d .msg{font-size:12px;color:var(--muted);max-width:500px;line-height:1.6}
+.modal-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);
+  z-index:9998;align-items:center;justify-content:center;
+  backdrop-filter:blur(6px);padding:20px;
+}
+.modal-overlay.show{display:flex;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal-box{
+  background:var(--bg-card);border:1px solid var(--accent);border-radius:14px;
+  padding:0;width:100%;max-width:720px;max-height:90vh;
+  box-shadow:0 30px 90px rgba(0,0,0,0.8), 0 0 40px rgba(6,182,212,0.2);
+  animation:modalIn .3s cubic-bezier(.34,1.56,.64,1);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+@keyframes modalIn{from{transform:scale(0.85) translateY(20px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+.modal-header{
+  background:linear-gradient(135deg, rgba(6,182,212,0.15), rgba(139,92,246,0.15));
+  padding:18px 24px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;
+}
+.modal-header-icon{
+  font-size:28px;width:48px;height:48px;border-radius:12px;
+  background:rgba(6,182,212,0.15);display:flex;align-items:center;justify-content:center;
+  border:1px solid rgba(6,182,212,0.3);
+}
+.modal-header-text h2{font-size:16px;font-weight:700;color:var(--text);letter-spacing:.3px}
+.modal-header-text p{font-size:11px;color:var(--muted);margin-top:2px}
+.modal-header-text p b{color:var(--accent2)}
+.modal-body{padding:20px 24px;overflow-y:auto;flex:1}
+.modal-section{margin-bottom:18px}
+.modal-section:last-child{margin-bottom:0}
+.modal-section-title{
+  font-size:10px;font-weight:700;color:var(--accent);letter-spacing:1.5px;
+  padding-bottom:6px;margin-bottom:12px;border-bottom:1px solid var(--border);
+}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-grid.three{grid-template-columns:1fr 1fr 1fr}
+.modal-field{display:flex;flex-direction:column;gap:4px}
+.modal-field label{
+  font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.3px;
+  display:flex;justify-content:space-between;
+}
+.modal-field label .req{color:var(--danger);font-weight:700}
+.modal-field input,.modal-field select{
+  background:var(--bg-light);color:var(--text);border:1px solid var(--border);
+  border-radius:6px;padding:9px 12px;font-size:13px;font-family:inherit;transition:all .15s;
+}
+.modal-field input:focus,.modal-field select:focus{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(6,182,212,0.2);
+  background:var(--bg-med);
+}
+.modal-field input.error{border-color:var(--danger);box-shadow:0 0 0 3px rgba(239,68,68,0.2)}
+.modal-field .hint{font-size:9px;color:var(--muted);font-style:italic;margin-top:2px}
+.modal-field .hint b{color:var(--warning)}
+.modal-check{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:var(--bg-light);border-radius:6px;border:1px solid var(--border);
+  font-size:12px;cursor:pointer;transition:all .15s;
+}
+.modal-check:hover{border-color:var(--accent)}
+.modal-check input{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+.modal-check.checked{background:rgba(6,182,212,0.15);border-color:var(--accent)}
+.modal-footer{
+  padding:16px 24px;background:var(--bg-med);border-top:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+}
+.modal-footer-info{font-size:10px;color:var(--muted)}
+.modal-footer-info kbd{
+  background:var(--bg-light);padding:2px 6px;border-radius:4px;
+  border:1px solid var(--border);font-size:9px;font-family:monospace;
+}
+.modal-footer-buttons{display:flex;gap:8px}
+.modal-footer .btn{padding:10px 20px;font-size:12px}
+.fitting-presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.preset-chip{
+  padding:5px 10px;background:var(--bg-light);border:1px solid var(--border);
+  border-radius:14px;font-size:10px;color:var(--text);cursor:pointer;transition:all .15s;
+}
+.preset-chip:hover{background:var(--accent);color:#000;border-color:var(--accent)}
+.preset-chip.active{background:var(--accent);color:#000;border-color:var(--accent)}
+.modal-alert{
+  padding:10px 14px;border-radius:6px;font-size:11px;
+  display:flex;align-items:center;gap:8px;margin-bottom:12px;
+}
+.modal-alert.warning{background:rgba(245,158,11,0.15);border-left:3px solid var(--warning);color:var(--warning)}
+.modal-alert.info{background:rgba(6,182,212,0.1);border-left:3px solid var(--accent);color:var(--accent)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">◈</div>
+  <div class="title-box">
+    <h1>RAFLOW <span id="unsavedDot"></span></h1>
+    <p data-i18n="app.subtitle">Visual Pipe Network Simulator • v alpha</p>
+  </div>
+  <div class="header-actions">
+    <div class="lang-toggle">
+      <button id="btnID" class="active" onclick="setLanguage('id')">🇮🇩 ID</button>
+      <button id="btnEN" onclick="setLanguage('en')">🇬🇧 EN</button>
+    </div>
+    <div class="view-toggle">
+      <button id="btn2d" class="active" onclick="switchView('2d')"><span data-i18n="view.2d">📐 2D</span></button>
+      <button id="btn3d" onclick="switchView('3d')"><span data-i18n="view.3d">🧊 3D</span></button>
+    </div>
+    <button class="btn ghost" onclick="saveJSON()"><span data-i18n="btn.save">💾 Save</span></button>
+    <button class="btn ghost" onclick="document.getElementById('loadFile').click()"><span data-i18n="btn.load">📂 Load</span></button>
+    <button class="btn ghost" onclick="exportExcel()"><span data-i18n="btn.excel">📊 Excel</span></button>
+    <input type="file" id="loadFile" accept=".json" style="display:none" onchange="loadJSON(event)">
+  </div>
+</header>
+
+<div class="app">
+  <div class="kpi-bar">
+    <div class="kpi-card cyan"><div class="kpi-title" data-i18n="kpi.flow">TOTAL FLOW (m³/s)</div><div class="kpi-value" id="kpiFlow">0.000</div></div>
+    <div class="kpi-card green"><div class="kpi-title" data-i18n="kpi.speed">AVG SPEED (m/s)</div><div class="kpi-value" id="kpiSpeed">0.000</div></div>
+    <div class="kpi-card violet"><div class="kpi-title" data-i18n="kpi.segments">PIPE SEGMENTS</div><div class="kpi-value" id="kpiSeg">0</div></div>
+    <div class="kpi-card amber"><div class="kpi-title" data-i18n="kpi.maxdp">MAX ΔP (Pa)</div><div class="kpi-value" id="kpiDp">0.00</div></div>
+  </div>
+
+  <div class="left-panel">
+    <div class="card">
+      <div class="card-title" data-i18n="panel.mode">INTERACTION MODE</div>
+      <div class="mode-btn active" data-mode="select" onclick="setMode('select')"><span data-i18n="mode.select">🖱️ Select / Move</span></div>
+      <div class="mode-btn" data-mode="add_node" onclick="setMode('add_node')"><span data-i18n="mode.addnode">➕ Add Node</span></div>
+      <div class="mode-btn" data-mode="connect" onclick="setMode('connect')"><span data-i18n="mode.connect">🔗 Connect Pipe</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-i18n="panel.quick">QUICK ACTIONS</div>
+      <div class="btn-row" style="flex-direction:column">
+        <button class="btn" onclick="calculate()"><span data-i18n="action.calc">▶ Calculate (F5)</span></button>
+        <button class="btn violet" onclick="openFullModalForSelected()"><span data-i18n="action.editfull">✏️ Full Form</span></button>
+        <button class="btn danger" onclick="clearNetwork()"><span data-i18n="action.clear">🗑 Clear Network</span></button>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;min-height:0">
+      <div class="card-title" id="propTitle" data-i18n="panel.props">🔧 PIPE PROPERTIES (Quick Edit)</div>
+      <div class="prop-form" id="propForm">
+        <div class="field"><label data-i18n="field.id">ID / Name</label><input id="f_id"></div>
+        <div class="field"><label data-i18n="field.length">Length (m) ✏️ manual</label><input id="f_length" type="number" step="0.01"></div>
+        <div class="field"><label data-i18n="field.diameter">Diameter (m) ✏️ manual</label><input id="f_diameter" type="number" step="0.001"></div>
+        <div class="field"><label data-i18n="field.flow">Flow Rate Q (opsional)</label><input id="f_flow" type="number" step="0.001"></div>
+        <div class="field"><label data-i18n="field.density">Density (kg/m³)</label><input id="f_density" type="number" step="1"></div>
+        <div class="field"><label data-i18n="field.viscosity">Viscosity (Pa·s)</label><input id="f_viscosity" type="number" step="0.000001"></div>
+        <div class="field"><label data-i18n="field.kloss">Loss K (manual)</label><input id="f_kloss" type="number" step="0.1"></div>
+        <div class="field"><label data-i18n="field.qty">Qty Fittings</label><input id="f_qty" type="number" step="1"></div>
+        <div class="field"><label data-i18n="field.temp">Temperature (°C)</label><input id="f_temp" type="number" step="0.1"></div>
+        <div class="field"><label data-i18n="field.massflow">Mass Flow (kg/s)</label><input id="f_mass" type="number" step="0.001"></div>
+        <div class="field"><label data-i18n="field.pressure">Pressure (Pa)</label><input id="f_pressure" type="number" step="1"></div>
+        <div class="field"><label data-i18n="field.roughness">Roughness (m)</label><input id="f_rough" type="number" step="0.00001"></div>
+        <div class="field"><label data-i18n="field.fitting">Fitting Type</label><select id="f_fitting"></select></div>
+        <div class="check-row"><input type="checkbox" id="f_fixed"><label for="f_fixed" data-i18n="field.fixed">Fixed Flow Rate</label></div>
+        <div class="btn-row">
+          <button class="btn success" onclick="saveConnection()"><span data-i18n="btn.saveBtn">💾 Save</span></button>
+          <button class="btn danger" onclick="deleteSelected()"><span data-i18n="btn.deleteBtn">🗑 Delete</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-area">
+    <div class="banner" id="banner" data-i18n="banner.default">🖱️ SELECT / MOVE — Klik Node untuk menggeser, klik Pipa untuk mengedit</div>
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="pipeCanvas"></canvas>
+      <canvas id="threeCanvas" style="display:none"></canvas>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="card-title" style="padding:8px 12px 6px;margin:0;border-radius:8px 8px 0 0;background:var(--bg-card)" data-i18n="panel.table">📋 NETWORK SEGMENTS</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="th.id">ID</th>
+              <th data-i18n="th.conn">Connection</th>
+              <th data-i18n="th.length">Length (m)</th>
+              <th data-i18n="th.diameter">Diameter</th>
+              <th data-i18n="th.flow">Flow</th>
+              <th data-i18n="th.speed">Speed</th>
+              <th data-i18n="th.density">Density</th>
+              <th data-i18n="th.kloss">K_loss</th>
+              <th data-i18n="th.fitting">Fitting</th>
+              <th data-i18n="th.qty">Qty</th>
+              <th data-i18n="th.fixed">Fixed</th>
+              <th data-i18n="th.dp">ΔP</th>
+            </tr>
+          </thead>
+          <tbody id="segTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-i18n="panel.chart">📈 PRESSURE DISTRIBUTION</div>
+      <div class="plot-wrap"><canvas id="pressureChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="status-bar" id="statusBar">ℹ️ Ready</div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- MODAL PIPE CONFIGURATOR -->
+<div class="modal-overlay" id="pipeModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-header-icon">🔧</div>
+      <div class="modal-header-text">
+        <h2 id="modalTitle">Pipe Configuration</h2>
+        <p id="modalSubtitle"></p>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div id="modalAlert" class="modal-alert info" style="display:none">
+        <span>ℹ️</span><span id="modalAlertText"></span>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title" data-i18n="modal.identity">📛 IDENTITY</div>
+        <div class="modal-grid">
+          <div class="modal-field"><label data-i18n="modal.id">ID / Name <span class="req">*</span></label><input id="m_id" type="text"></div>
+          <div class="modal-field"><label data-i18n="modal.fitting">Fitting Type</label><select id="m_fitting"></select></div>
+        </div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title" data-i18n="modal.geometry">📏 GEOMETRY & MATERIAL</div>
+        <div class="modal-grid">
+          <div class="modal-field">
+            <label data-i18n="modal.length">Length (m) <span class="req">*</span></label>
+            <input id="m_length" type="number" step="0.01" min="0.01">
+            <div class="hint"><span data-i18n="modal.hint.length">💡 Canvas distance:</span> <b id="hintLength">0.00</b> m</div>
+          </div>
+          <div class="modal-field">
+            <label data-i18n="modal.diameter">Diameter (m) <span class="req">*</span></label>
+            <input id="m_diameter" type="number" step="0.001" min="0.001">
+            <div class="hint" data-i18n="modal.hint.diameter">0.05=50mm, 0.1=100mm</div>
+          </div>
+          <div class="modal-field">
+            <label data-i18n="modal.roughness">Roughness / ε (m)</label>
+            <input id="m_roughness" type="number" step="0.00001" min="0">
+            <div class="hint" data-i18n="modal.hint.roughness">Steel:4.5e-5, PVC:1.5e-6</div>
+          </div>
+          <div class="modal-field">
+            <label data-i18n="modal.density">Density (kg/m³) <span class="req">*</span></label>
+            <input id="m_density" type="number" step="1">
+            <div class="hint" data-i18n="modal.hint.density">Water:998, Air:1.2</div>
+          </div>
+          <div class="modal-field">
+            <label data-i18n="modal.viscosity">Viscosity (Pa·s) <span class="req">*</span></label>
+            <input id="m_viscosity" type="number" step="0.000001">
+            <div class="hint" data-i18n="modal.hint.viscosity">Water:0.001, Oil:0.1</div>
+          </div>
+          <div class="modal-field">
+            <label data-i18n="modal.temp">Temperature (°C)</label>
+            <input id="m_temperature" type="number" step="0.1">
+          </div>
+        </div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title" data-i18n="modal.fittingSection">🔩 FITTING & LOSSES</div>
+        <div class="modal-grid three">
+          <div class="modal-field"><label data-i18n="modal.kloss">Loss K (manual)</label><input id="m_kloss" type="number" step="0.01"></div>
+          <div class="modal-field"><label data-i18n="modal.qty">Qty Fittings</label><input id="m_qty" type="number" step="1"></div>
+          <div class="modal-field">
+            <label data-i18n="modal.ktotal">K Total</label>
+            <input id="m_ktotal" type="text" readonly value="0.00" style="background:var(--bg-med);color:var(--accent);font-weight:700">
+          </div>
+        </div>
+        <div class="fitting-presets" id="presetChips"></div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title" data-i18n="modal.operation">⚙️ OPERATING CONDITIONS</div>
+        <div class="modal-grid">
+          <div class="modal-field"><label data-i18n="modal.flow">Flow Rate Q (m³/s)</label><input id="m_flow" type="number" step="0.001"></div>
+          <div class="modal-field"><label data-i18n="modal.massflow">Mass Flow (kg/s)</label><input id="m_massflow" type="number" step="0.001"></div>
+          <div class="modal-field"><label data-i18n="modal.pressure">Pressure (Pa)</label><input id="m_pressure" type="number" step="1"></div>
+          <div class="modal-field">
+            <label>&nbsp;</label>
+            <div class="modal-check" id="modalFixedCheck">
+              <input type="checkbox" id="m_fixed">
+              <label for="m_fixed" style="cursor:pointer" data-i18n="modal.fixed">🔒 Fixed Flow Rate</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-footer-info"><kbd>Enter</kbd> <span data-i18n="modal.save">Save</span> &nbsp; • &nbsp; <kbd>Esc</kbd> <span data-i18n="modal.cancel">Cancel</span></div>
+      <div class="modal-footer-buttons">
+        <button class="btn ghost" onclick="closePipeModal()" data-i18n="btn.cancel">Cancel</button>
+        <button class="btn success" id="modalSaveBtn" onclick="savePipeModal()" data-i18n="btn.savePipe">✓ Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================= I18N =================
+const TRANSLATIONS = {
+  id: {
+    "app.subtitle": "Simulator Jaringan Pipa Visual • v alpha",
+    "view.2d": "📐 2D", "view.3d": "🧊 3D",
+    "btn.save": "💾 Simpan", "btn.load": "📂 Muat", "btn.excel": "📊 Excel",
+    "btn.saveBtn": "💾 Simpan", "btn.deleteBtn": "🗑 Hapus",
+    "btn.cancel": "Batal", "btn.savePipe": "✓ Simpan",
+    "kpi.flow": "TOTAL ALIRAN (m³/s)", "kpi.speed": "KECEPATAN RATA-RATA (m/s)",
+    "kpi.segments": "SEGMEN PIPA", "kpi.maxdp": "ΔP MAKS (Pa)",
+    "panel.mode": "MODE INTERAKSI", "panel.quick": "AKSI CEPAT",
+    "panel.props": "🔧 PROPERTI PIPA (Edit Cepat)",
+    "panel.table": "📋 SEGMEN JARINGAN", "panel.chart": "📈 DISTRIBUSI TEKANAN",
+    "mode.select": "🖱️ Pilih / Geser", "mode.addnode": "➕ Tambah Node",
+    "mode.connect": "🔗 Hubungkan Pipa",
+    "action.calc": "▶ Hitung (F5)", "action.editfull": "✏️ Form Lengkap",
+    "action.clear": "🗑 Bersihkan Jaringan",
+    "field.id": "ID / Nama", "field.length": "Panjang (m) ✏️ manual",
+    "field.diameter": "Diameter (m) ✏️ manual", "field.flow": "Laju Aliran Q (opsional)",
+    "field.density": "Densitas (kg/m³)", "field.viscosity": "Viskositas (Pa·s)",
+    "field.kloss": "Loss K (manual)", "field.qty": "Jml Fitting",
+    "field.temp": "Suhu (°C)", "field.massflow": "Aliran Massa (kg/s)",
+    "field.pressure": "Tekanan (Pa)", "field.roughness": "Kekasaran (m)",
+    "field.fitting": "Jenis Fitting", "field.fixed": "Fixed Flow Rate",
+    "banner.default": "🖱️ PILIH / GESER — Klik Node untuk menggeser, klik Pipa untuk mengedit",
+    "banner.select": "🖱️ PILIH / GESER — Klik Node untuk menggeser, klik Pipa untuk mengedit propertinya",
+    "banner.addnode": "➕ TAMBAH NODE — Klik area kosong pada canvas untuk menambahkan node baru",
+    "banner.connect": "🔗 HUBUNGKAN PIPA — Klik node sumber, lalu klik node tujuan. Form konfigurasi lengkap akan muncul.",
+    "th.id": "ID", "th.conn": "Koneksi", "th.length": "Panjang (m)",
+    "th.diameter": "Diameter", "th.flow": "Aliran", "th.speed": "Kecepatan",
+    "th.density": "Densitas", "th.kloss": "K_loss", "th.fitting": "Fitting",
+    "th.qty": "Jml", "th.fixed": "Fixed", "th.dp": "ΔP",
+    "modal.identity": "📛 IDENTITAS", "modal.geometry": "📏 GEOMETRI & MATERIAL",
+    "modal.fittingSection": "🔩 FITTING & LOSSES", "modal.operation": "⚙️ KONDISI OPERASI",
+    "modal.id": "ID / Nama <span class=\"req\">*</span>",
+    "modal.fitting": "Jenis Fitting",
+    "modal.length": "Panjang (m) <span class=\"req\">*</span>",
+    "modal.diameter": "Diameter (m) <span class=\"req\">*</span>",
+    "modal.roughness": "Kekasaran / ε (m)",
+    "modal.density": "Densitas (kg/m³) <span class=\"req\">*</span>",
+    "modal.viscosity": "Viskositas (Pa·s) <span class=\"req\">*</span>",
+    "modal.temp": "Suhu (°C)",
+    "modal.kloss": "Loss K (manual)", "modal.qty": "Jml Fitting",
+    "modal.ktotal": "K Total",
+    "modal.flow": "Laju Aliran Q (m³/s)", "modal.massflow": "Aliran Massa (kg/s)",
+    "modal.pressure": "Tekanan (Pa)", "modal.fixed": "🔒 Fixed Flow Rate",
+    "modal.hint.length": "💡 Jarak canvas:",
+    "modal.hint.diameter": "0.05=50mm, 0.1=100mm",
+    "modal.hint.roughness": "Baja:4.5e-5, PVC:1.5e-6",
+    "modal.hint.density": "Air:998, Udara:1.2",
+    "modal.hint.viscosity": "Air:0.001, Oli:0.1",
+    "modal.save": "Simpan", "modal.cancel": "Batal",
+    "modal.title.new": "🔧 Konfigurasi Pipa Baru",
+    "modal.title.edit": "✏️ Edit Pipa",
+    "modal.between": "Antara", "modal.canvasDist": "jarak canvas:",
+    "modal.btn.create": "✓ Buat Pipa", "modal.btn.update": "✓ Simpan Perubahan",
+    "preset.label": "Preset cepat:",
+    "status.ready": "Siap. Gunakan mode di kiri atas untuk mulai mendesain jaringan pipa.",
+    "status.view2d": "Mode 2D aktif — klik node/pipa untuk edit",
+    "status.view3d": "Mode 3D aktif — drag mouse untuk rotasi, scroll untuk zoom",
+    "status.calcDone": "Kalkulasi selesai",
+    "status.segments": "segmen",
+    "status.totalFlow": "total aliran",
+    "status.unsaved": "Perubahan belum disimpan",
+    "status.saved": "File tersimpan",
+    "toast.nodeAdded": "Node ditambahkan",
+    "toast.sourceNode": "Node sumber — klik node tujuan",
+    "toast.connExists": "Koneksi sudah ada",
+    "toast.pipeCreated": "Pipa dibuat",
+    "toast.pipeUpdated": "Pipa diperbarui",
+    "toast.propsUpdated": "Properti pipa diperbarui",
+    "toast.nodeDeleted": "Node & pipa terkait dihapus",
+    "toast.pipeDeleted": "Segmen pipa dihapus",
+    "toast.noSelection": "Tidak ada item terpilih",
+    "toast.noPipe": "Belum ada segmen pipa",
+    "toast.calcSuccess": "Kalkulasi berhasil",
+    "toast.selectPipe": "Pilih pipa dulu (mode Select, klik pipa)",
+    "toast.fileSaved": "File berhasil disimpan",
+    "toast.fileLoaded": "File berhasil dimuat",
+    "toast.fileLoadError": "Gagal memuat",
+    "toast.noDataSave": "Tidak ada data untuk disimpan",
+    "toast.noDataExport": "Tidak ada data untuk dieksport",
+    "toast.exported": "Data dieksport ke Excel",
+    "toast.networkCleared": "Jaringan dibersihkan",
+    "toast.presetApplied": "Preset diterapkan",
+    "toast.autoRotateOn": "Auto rotasi AKTIF",
+    "toast.autoRotateOff": "Auto rotasi NONAKTIF",
+    "toast.sceneRefreshed": "3D diperbarui",
+    "toast.fieldInvalid": "Field wajib belum valid",
+    "toast.lengthMustBePositive": "Panjang harus > 0",
+    "toast.mustBePositive": "harus > 0",
+    "confirm.clearNetwork": "Hapus seluruh jaringan?",
+    "alert.modalWarning": "Field wajib belum valid",
+    "legend.title": "LEGENDA",
+    "legend.source": "Sumber (Inlet)",
+    "legend.sink": "Keluar (Outlet)",
+    "legend.node": "Node Biasa",
+    "legend.selected": "Pipa Terpilih",
+    "legend.pressure": "Tekanan (ΔP):",
+    "legend.low": "Rendah", "legend.high": "Tinggi",
+    "view3d.badge": "🧊 MODE 3D",
+    "view3d.top": "⬆️ Tampak Atas", "view3d.iso": "🎲 Isometrik",
+    "view3d.front": "🔲 Tampak Depan", "view3d.autoRotate": "▶ Auto Rotasi",
+    "view3d.stopRotate": "⏸ Stop Rotasi", "view3d.refresh": "🔄 Refresh 3D",
+    "loading3d.msg": "Menyiapkan tampilan 3D...",
+    "loading3d.sub": "Mohon tunggu sebentar",
+    "error.title": "Three.js gagal dimuat",
+    "error.msg": "Pastikan Anda terhubung ke internet. Coba refresh halaman (Ctrl+F5).",
+    "error.canvas": "Canvas terlalu kecil",
+    "error.canvasMsg": "Resize window atau refresh halaman.",
+    "error.init": "Gagal inisialisasi 3D",
+    "chart.title": "Distribusi Tekanan",
+    "chart.xaxis": "Jarak (m)",
+    "chart.yaxis": "Tekanan (Pa)",
+    "chart.label": "Tekanan (Pa)"
+  },
+  en: {
+    "app.subtitle": "Visual Pipe Network Simulator • v alpha",
+    "view.2d": "📐 2D", "view.3d": "🧊 3D",
+    "btn.save": "💾 Save", "btn.load": "📂 Load", "btn.excel": "📊 Excel",
+    "btn.saveBtn": "💾 Save", "btn.deleteBtn": "🗑 Delete",
+    "btn.cancel": "Cancel", "btn.savePipe": "✓ Save",
+    "kpi.flow": "TOTAL FLOW (m³/s)", "kpi.speed": "AVG SPEED (m/s)",
+    "kpi.segments": "PIPE SEGMENTS", "kpi.maxdp": "MAX ΔP (Pa)",
+    "panel.mode": "INTERACTION MODE", "panel.quick": "QUICK ACTIONS",
+    "panel.props": "🔧 PIPE PROPERTIES (Quick Edit)",
+    "panel.table": "📋 NETWORK SEGMENTS", "panel.chart": "📈 PRESSURE DISTRIBUTION",
+    "mode.select": "🖱️ Select / Move", "mode.addnode": "➕ Add Node",
+    "mode.connect": "🔗 Connect Pipe",
+    "action.calc": "▶ Calculate (F5)", "action.editfull": "✏️ Full Form",
+    "action.clear": "🗑 Clear Network",
+    "field.id": "ID / Name", "field.length": "Length (m) ✏️ manual",
+    "field.diameter": "Diameter (m) ✏️ manual", "field.flow": "Flow Rate Q (optional)",
+    "field.density": "Density (kg/m³)", "field.viscosity": "Viscosity (Pa·s)",
+    "field.kloss": "Loss K (manual)", "field.qty": "Qty Fittings",
+    "field.temp": "Temperature (°C)", "field.massflow": "Mass Flow (kg/s)",
+    "field.pressure": "Pressure (Pa)", "field.roughness": "Roughness (m)",
+    "field.fitting": "Fitting Type", "field.fixed": "Fixed Flow Rate",
+    "banner.default": "🖱️ SELECT / MOVE — Click Node to move, click Pipe to edit",
+    "banner.select": "🖱️ SELECT / MOVE — Click Node to move, click Pipe to edit properties",
+    "banner.addnode": "➕ ADD NODE — Click empty canvas area to add a new node",
+    "banner.connect": "🔗 CONNECT PIPE — Click source node, then target node. Full configuration form will appear.",
+    "th.id": "ID", "th.conn": "Connection", "th.length": "Length (m)",
+    "th.diameter": "Diameter", "th.flow": "Flow", "th.speed": "Speed",
+    "th.density": "Density", "th.kloss": "K_loss", "th.fitting": "Fitting",
+    "th.qty": "Qty", "th.fixed": "Fixed", "th.dp": "ΔP",
+    "modal.identity": "📛 IDENTITY", "modal.geometry": "📏 GEOMETRY & MATERIAL",
+    "modal.fittingSection": "🔩 FITTING & LOSSES", "modal.operation": "⚙️ OPERATING CONDITIONS",
+    "modal.id": "ID / Name <span class=\"req\">*</span>",
+    "modal.fitting": "Fitting Type",
+    "modal.length": "Length (m) <span class=\"req\">*</span>",
+    "modal.diameter": "Diameter (m) <span class=\"req\">*</span>",
+    "modal.roughness": "Roughness / ε (m)",
+    "modal.density": "Density (kg/m³) <span class=\"req\">*</span>",
+    "modal.viscosity": "Viscosity (Pa·s) <span class=\"req\">*</span>",
+    "modal.temp": "Temperature (°C)",
+    "modal.kloss": "Loss K (manual)", "modal.qty": "Qty Fittings",
+    "modal.ktotal": "K Total",
+    "modal.flow": "Flow Rate Q (m³/s)", "modal.massflow": "Mass Flow (kg/s)",
+    "modal.pressure": "Pressure (Pa)", "modal.fixed": "🔒 Fixed Flow Rate",
+    "modal.hint.length": "💡 Canvas distance:",
+    "modal.hint.diameter": "0.05=50mm, 0.1=100mm",
+    "modal.hint.roughness": "Steel:4.5e-5, PVC:1.5e-6",
+    "modal.hint.density": "Water:998, Air:1.2",
+    "modal.hint.viscosity": "Water:0.001, Oil:0.1",
+    "modal.save": "Save", "modal.cancel": "Cancel",
+    "modal.title.new": "🔧 New Pipe Configuration",
+    "modal.title.edit": "✏️ Edit Pipe",
+    "modal.between": "Between", "modal.canvasDist": "canvas distance:",
+    "modal.btn.create": "✓ Create Pipe", "modal.btn.update": "✓ Save Changes",
+    "preset.label": "Quick presets:",
+    "status.ready": "Ready. Use modes in the top-left to start designing the pipe network.",
+    "status.view2d": "2D mode active — click node/pipe to edit",
+    "status.view3d": "3D mode active — drag mouse to rotate, scroll to zoom",
+    "status.calcDone": "Calculation done",
+    "status.segments": "segments",
+    "status.totalFlow": "total flow",
+    "status.unsaved": "Unsaved changes",
+    "status.saved": "File saved",
+    "toast.nodeAdded": "Node added",
+    "toast.sourceNode": "Source node — click target node",
+    "toast.connExists": "Connection already exists",
+    "toast.pipeCreated": "Pipe created",
+    "toast.pipeUpdated": "Pipe updated",
+    "toast.propsUpdated": "Pipe properties updated",
+    "toast.nodeDeleted": "Node & related pipes deleted",
+    "toast.pipeDeleted": "Pipe segment deleted",
+    "toast.noSelection": "No item selected",
+    "toast.noPipe": "No pipe segments yet",
+    "toast.calcSuccess": "Calculation successful",
+    "toast.selectPipe": "Select a pipe first (Select mode, click a pipe)",
+    "toast.fileSaved": "File saved successfully",
+    "toast.fileLoaded": "File loaded successfully",
+    "toast.fileLoadError": "Failed to load",
+    "toast.noDataSave": "No data to save",
+    "toast.noDataExport": "No data to export",
+    "toast.exported": "Data exported to Excel",
+    "toast.networkCleared": "Network cleared",
+    "toast.presetApplied": "Preset applied",
+    "toast.autoRotateOn": "Auto rotate ON",
+    "toast.autoRotateOff": "Auto rotate OFF",
+    "toast.sceneRefreshed": "3D refreshed",
+    "toast.fieldInvalid": "Required field invalid",
+    "toast.lengthMustBePositive": "Length must be > 0",
+    "toast.mustBePositive": "must be > 0",
+    "confirm.clearNetwork": "Clear the entire network?",
+    "alert.modalWarning": "Required field invalid",
+    "legend.title": "LEGEND",
+    "legend.source": "Source (Inlet)",
+    "legend.sink": "Sink (Outlet)",
+    "legend.node": "Normal Node",
+    "legend.selected": "Selected Pipe",
+    "legend.pressure": "Pressure (ΔP):",
+    "legend.low": "Low", "legend.high": "High",
+    "view3d.badge": "🧊 3D VIEW MODE",
+    "view3d.top": "⬆️ Top View", "view3d.iso": "🎲 Isometric",
+    "view3d.front": "🔲 Front View", "view3d.autoRotate": "▶ Auto Rotate",
+    "view3d.stopRotate": "⏸ Stop Rotate", "view3d.refresh": "🔄 Refresh 3D",
+    "loading3d.msg": "Preparing 3D view...",
+    "loading3d.sub": "Please wait a moment",
+    "error.title": "Three.js failed to load",
+    "error.msg": "Please check your internet connection. Try refreshing the page (Ctrl+F5).",
+    "error.canvas": "Canvas too small",
+    "error.canvasMsg": "Resize window or refresh the page.",
+    "error.init": "Failed to initialize 3D",
+    "chart.title": "Pressure Distribution",
+    "chart.xaxis": "Distance (m)",
+    "chart.yaxis": "Pressure (Pa)",
+    "chart.label": "Pressure (Pa)"
+  }
+};
+
+let currentLang = 'id';
+function t(key) {
+  return (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) || key;
+}
+
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    el.innerHTML = t(key);
+  });
+  updateBannerForMode();
+  if (pressureChart) {
+    pressureChart.options.scales.x.title.text = t('chart.xaxis');
+    pressureChart.options.scales.y.title.text = t('chart.yaxis');
+    pressureChart.data.datasets[0].label = t('chart.label');
+    pressureChart.update();
+  }
+  if (currentView === '3d') add3DOverlays();
+  if (!unsaved) setStatus(t('status.ready'), 'info');
+}
+
+function setLanguage(lang) {
+  currentLang = lang;
+  localStorage.setItem('RAflow_lang', lang);
+  document.getElementById('btnID').classList.toggle('active', lang === 'id');
+  document.getElementById('btnEN').classList.toggle('active', lang === 'en');
+  applyTranslations();
+  toast(lang === 'id' ? '🇮🇩 Bahasa: Indonesia' : '🇬🇧 Language: English', 'info');
+}
+
+function updateBannerForMode() {
+  const banners = {
+    select: t('banner.select'),
+    add_node: t('banner.addnode'),
+    connect: t('banner.connect')
+  };
+  document.getElementById('banner').textContent = banners[mode] || banners.select;
+}
+
+// ================= STATE =================
+let nodes = {};
+let connections = [];
+let nodeCounter = 1;
+let mode = "select";
+let selectedNode = null;
+let selectedConnIdx = null;
+let unsaved = false;
+let modalContext = null;
+let currentView = '2d';
+
+const ASHRAE_K = {
+  "None (manual)": null,
+  "Pipe Entrance (sharp)": 0.5,
+  "Pipe Exit": 1.0,
+  "Elbow 90° (smooth radius)": 0.3,
+  "Elbow 90° (sharp)": 1.5,
+  "Tee (through)": 0.6,
+  "Tee (branch)": 1.8,
+  "Globe Valve (fully open)": 10.0,
+  "Gate Valve (fully open)": 0.2,
+  "Check Valve": 2.0,
+  "Sudden Contraction": 0.42,
+  "Sudden Expansion": 1.0
+};
+
+// ================= 2D =================
+const canvas = document.getElementById('pipeCanvas');
+const ctx = canvas.getContext('2d');
+let canvasW = 0, canvasH = 0;
+let dragNode = null;
+let mousePos = {x: 0, y: 0};
+
+// ================= 3D =================
+let scene, camera, renderer, controls3d;
+let threeInitialized = false;
+let pipe3dMeshes = [];
+let node3dMeshes = {};
+let labelSprites = [];
+let autoRotate3d = false;
+
+// ================= 3D SYNC HELPERS =================
+let _rebuild3DTimer = null;
+let _last3DHash = '';
+
+function compute3DHash() {
+  return JSON.stringify({
+    n: Object.keys(nodes).sort(),
+    npos: Object.keys(nodes).sort().map(id =>
+      `${Math.round(nodes[id].x)},${Math.round(nodes[id].y)}`).join('|'),
+    c: connections.map(c => `${c.from}->${c.to}`).join('|'),
+    cparams: connections.map(c =>
+      `${c.seg.diameter}|${c.seg.length}|${c.seg.roughness}|${c.seg.fitting}`).join('|'),
+    sel: selectedNode || '',
+    selConn: selectedConnIdx === null ? '' : selectedConnIdx
+  });
+}
+
+function forceRebuild3D() {
+  if (!threeInitialized || !scene) return;
+  console.log('🔨 forceRebuild3D called');
+  rebuild3D();
+  _last3DHash = compute3DHash();
+}
+
+function schedule3DRebuild(delay = 60) {
+  if (!threeInitialized || !scene) return;
+  clearTimeout(_rebuild3DTimer);
+  _rebuild3DTimer = setTimeout(() => {
+    if (threeInitialized && scene) {
+      rebuild3D();
+      _last3DHash = compute3DHash();
+    }
+  }, delay);
+}
+
+function syncViews() {
+  drawCanvas();
+  if (threeInitialized && scene) {
+    forceRebuild3D();
+  }
+}
+
+// ================= CANVAS RESIZE =================
+function resizeCanvas() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  canvasW = canvas.width;
+  canvasH = canvas.height;
+  drawCanvas();
+}
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  if (currentView === '3d') resize3D();
+});
+
+// ================= 2D DRAW =================
+function drawCanvas() {
+  ctx.clearRect(0, 0, canvasW, canvasH);
+
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < canvasW; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvasH); ctx.stroke();
+  }
+  for (let y = 0; y < canvasH; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvasW, y); ctx.stroke();
+  }
+
+  connections.forEach((c, i) => {
+    const n1 = nodes[c.from], n2 = nodes[c.to];
+    if (!n1 || !n2) return;
+    const isSel = i === selectedConnIdx;
+    const color = isSel ? '#8b5cf6' : '#06b6d4';
+    const w = isSel ? 5 : 3;
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(n1.x + 2, n1.y + 2);
+    ctx.lineTo(n2.x + 2, n2.y + 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = w;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = isSel ? 14 : 6;
+    ctx.beginPath();
+    ctx.moveTo(n1.x, n1.y);
+    ctx.lineTo(n2.x, n2.y);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    const ang = Math.atan2(n2.y - n1.y, n2.x - n1.x);
+    const ax = n2.x - 14 * Math.cos(ang);
+    const ay = n2.y - 14 * Math.sin(ang);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(n2.x, n2.y);
+    ctx.lineTo(ax - 6 * Math.sin(ang), ay + 6 * Math.cos(ang));
+    ctx.lineTo(ax + 6 * Math.sin(ang), ay - 6 * Math.cos(ang));
+    ctx.closePath();
+    ctx.fill();
+
+    const mx = (n1.x + n2.x) / 2;
+    const my = (n1.y + n2.y) / 2;
+    const label = `${c.seg.id} • L:${c.seg.length.toFixed(2)}m D:${c.seg.diameter.toFixed(3)}m`;
+    ctx.font = 'bold 10px Segoe UI';
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = '#1e293b';
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1;
+    roundRectCtx(ctx, mx - tw/2 - 8, my - 30, tw + 16, 18, 4);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#f1f5f9';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, mx, my - 21);
+  });
+
+  Object.entries(nodes).forEach(([id, n]) => {
+    const src = isSource(id), snk = isSink(id);
+    let color = '#06b6d4';
+    if (src) color = '#10b981';
+    else if (snk) color = '#f59e0b';
+    if (id === selectedNode) color = '#ef4444';
+
+    if (id === selectedNode) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.arc(n.x, n.y, 20, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.beginPath(); ctx.arc(n.x + 3, n.y + 3, 12, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(n.x, n.y, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(n.x, n.y, 13, 0, Math.PI * 2); ctx.stroke();
+
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 9px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(id.replace('Node', 'N'), n.x, n.y);
+  });
+
+  if (mode === 'connect' && selectedNode && nodes[selectedNode]) {
+    const n = nodes[selectedNode];
+    ctx.strokeStyle = '#22d3ee';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(n.x, n.y);
+    ctx.lineTo(mousePos.x, mousePos.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function roundRectCtx(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// ================= MOUSE =================
+function getMouse(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+function findNodeAt(pt) {
+  for (const [id, n] of Object.entries(nodes)) {
+    if ((pt.x - n.x) ** 2 + (pt.y - n.y) ** 2 <= 14 * 14) return id;
+  }
+  return null;
+}
+function distToSegment(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const l2 = dx * dx + dy * dy;
+  if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+canvas.addEventListener('mousemove', e => {
+  mousePos = getMouse(e);
+  if (dragNode && mode === 'select') {
+    nodes[dragNode] = { x: mousePos.x, y: mousePos.y };
+    markUnsaved();
+    drawCanvas();
+    schedule3DRebuild(50);
+  } else if (mode === 'connect' && selectedNode) {
+    drawCanvas();
+  }
+});
+
+canvas.addEventListener('mousedown', e => {
+  const pt = getMouse(e);
+
+  if (mode === 'add_node') {
+    const id = `Node${nodeCounter++}`;
+    nodes[id] = { x: pt.x, y: pt.y };
+    selectedNode = id;
+    selectedConnIdx = null;
+    markUnsaved();
+    drawCanvas();
+    console.log('➕ Node added:', id, '| threeInitialized:', threeInitialized);
+    // 🔥 FORCE rebuild tanpa kondisi apapun
+    if (threeInitialized && scene) {
+      setTimeout(() => forceRebuild3D(), 30);
+    }
+    toast(`${t('toast.nodeAdded')}: ${id}`, 'success');
+  }
+  else if (mode === 'connect') {
+    const hit = findNodeAt(pt);
+    if (hit) {
+      if (!selectedNode) {
+        selectedNode = hit;
+        toast(`${t('toast.sourceNode')}: ${hit}`, 'info');
+      } else if (hit !== selectedNode) {
+        if (connections.some(c => c.from === selectedNode && c.to === hit)) {
+          toast(t('toast.connExists'), 'warning');
+          return;
+        }
+        const n1 = nodes[selectedNode], n2 = nodes[hit];
+        const dist = Math.hypot(n2.x - n1.x, n2.y - n1.y);
+        openPipeModal('create', selectedNode, hit, dist);
+      }
+    }
+  }
+  else if (mode === 'select') {
+    const hit = findNodeAt(pt);
+    if (hit) {
+      selectedNode = hit;
+      selectedConnIdx = null;
+      dragNode = hit;
+      drawCanvas();
+      if (threeInitialized) forceRebuild3D();
+      return;
+    }
+    for (let i = 0; i < connections.length; i++) {
+      const c = connections[i];
+      const n1 = nodes[c.from], n2 = nodes[c.to];
+      if (!n1 || !n2) continue;
+      if (distToSegment(pt, n1, n2) < 8) {
+        selectedConnIdx = i;
+        selectedNode = null;
+        loadConnToForm(i);
+        drawCanvas();
+        renderTable();
+        if (threeInitialized) forceRebuild3D();
+        return;
+      }
+    }
+    selectedNode = null;
+    selectedConnIdx = null;
+    drawCanvas();
+    if (threeInitialized) forceRebuild3D();
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  if (dragNode && threeInitialized) {
+    clearTimeout(_rebuild3DTimer);
+    forceRebuild3D();
+  }
+  dragNode = null;
+});
+canvas.addEventListener('mouseleave', () => {
+  if (dragNode && threeInitialized) {
+    clearTimeout(_rebuild3DTimer);
+    forceRebuild3D();
+  }
+  dragNode = null;
+});
+
+// ================= 3D INIT =================
+function init3D() {
+  if (typeof THREE === 'undefined') {
+    console.error('❌ THREE not loaded');
+    show3DError(t('error.title'), t('error.msg'));
+    return false;
+  }
+  if (threeInitialized) return true;
+
+  show3DLoading();
+  try {
+    const canvas3d = document.getElementById('threeCanvas');
+    const rect = canvas3d.parentElement.getBoundingClientRect();
+    if (rect.width < 10 || rect.height < 10) {
+      show3DError(t('error.canvas'), t('error.canvasMsg'));
+      return false;
+    }
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1220);
+    scene.fog = new THREE.Fog(0x0b1220, 500, 2000);
+
+    camera = new THREE.PerspectiveCamera(50, rect.width / rect.height, 1, 8000);
+    camera.position.set(0, 300, 500);
+    camera.lookAt(0, 0, 0);
+
+    renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true, alpha: false });
+    renderer.setSize(rect.width, rect.height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    dirLight.position.set(200, 400, 300);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.left = -800;
+    dirLight.shadow.camera.right = 800;
+    dirLight.shadow.camera.top = 800;
+    dirLight.shadow.camera.bottom = -800;
+    scene.add(dirLight);
+
+    const fillLight = new THREE.DirectionalLight(0x06b6d4, 0.5);
+    fillLight.position.set(-300, 200, -200);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0x8b5cf6, 0.4);
+    rimLight.position.set(0, -200, 400);
+    scene.add(rimLight);
+
+    const grid = new THREE.GridHelper(2000, 40, 0x06b6d4, 0x1e293b);
+    grid.position.y = -5;
+    grid.material.opacity = 0.35;
+    grid.material.transparent = true;
+    scene.add(grid);
+
+    if (typeof THREE.OrbitControls === 'function') {
+      controls3d = new THREE.OrbitControls(camera, renderer.domElement);
+      controls3d.enableDamping = true;
+      controls3d.dampingFactor = 0.08;
+      controls3d.maxPolarAngle = Math.PI / 2.05;
+      controls3d.minDistance = 100;
+      controls3d.maxDistance = 3000;
+      controls3d.target.set(0, 0, 0);
+    }
+
+    threeInitialized = true;
+    hide3DLoading();
+    animate3D();
+    console.log('✅ 3D initialized');
+    return true;
+  } catch (e) {
+    console.error('init3D error:', e);
+    show3DError(t('error.init'), e.message);
+    return false;
+  }
+}
+
+function animate3D() {
+  if (currentView !== '3d') return;
+  requestAnimationFrame(animate3D);
+  if (controls3d) controls3d.update();
+  if (renderer && scene && camera) renderer.render(scene, camera);
+}
+
+function show3DLoading() {
+  const wrap = document.getElementById('canvasWrap');
+  remove3DOverlays();
+  const el = document.createElement('div');
+  el.className = 'loading-3d';
+  el.id = 'loading3d';
+  el.innerHTML = `
+    <div class="spinner"></div>
+    <div class="msg">${t('loading3d.msg')}</div>
+    <div class="sub">${t('loading3d.sub')}</div>
+  `;
+  wrap.appendChild(el);
+}
+function hide3DLoading() {
+  const el = document.getElementById('loading3d');
+  if (el) el.remove();
+}
+function show3DError(title, msg) {
+  const wrap = document.getElementById('canvasWrap');
+  remove3DOverlays();
+  const el = document.createElement('div');
+  el.className = 'error-3d';
+  el.id = 'error3d';
+  el.innerHTML = `
+    <div class="icon">⚠️</div>
+    <div class="title">${title}</div>
+    <div class="msg">${msg}</div>
+  `;
+  wrap.appendChild(el);
+}
+function remove3DOverlays() {
+  ['loading3d', 'error3d'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  });
+  document.querySelectorAll('.view-3d-overlay, .view-3d-legend, .view-3d-controls')
+    .forEach(el => el.remove());
+}
+
+// ================= 3D BUILD =================
+function rebuild3D() {
+  if (!scene) return;
+
+  pipe3dMeshes.forEach(m => {
+    scene.remove(m.mesh);
+    if (m.mesh.geometry) m.mesh.geometry.dispose();
+    if (m.mesh.material) m.mesh.material.dispose();
+    if (m.cone) {
+      scene.remove(m.cone);
+      if (m.cone.geometry) m.cone.geometry.dispose();
+      if (m.cone.material) m.cone.material.dispose();
+    }
+    if (m.label) scene.remove(m.label);
+  });
+  Object.values(node3dMeshes).forEach(m => {
+    scene.remove(m);
+    if (m.geometry) m.geometry.dispose();
+    if (m.material) m.material.dispose();
+    if (m._label) scene.remove(m._label);
+    if (m._ring) {
+      scene.remove(m._ring);
+      if (m._ring.geometry) m._ring.geometry.dispose();
+      if (m._ring.material) m._ring.material.dispose();
+    }
+  });
+  labelSprites.forEach(s => scene.remove(s));
+  pipe3dMeshes = [];
+  node3dMeshes = {};
+  labelSprites = [];
+
+  if (!Object.keys(nodes).length) return;
+
+  let sumX = 0, sumY = 0;
+  const ids = Object.keys(nodes);
+  ids.forEach(id => { sumX += nodes[id].x; sumY += nodes[id].y; });
+  const cx = sumX / ids.length;
+  const cy = sumY / ids.length;
+
+  const sphereGeo = new THREE.SphereGeometry(8, 24, 24);
+  ids.forEach(id => {
+    const n = nodes[id];
+    const px = n.x - cx;
+    const py = -(n.y - cy);
+
+    const src = isSource(id);
+    const snk = isSink(id);
+    let color = 0x06b6d4;
+    if (src) color = 0x10b981;
+    else if (snk) color = 0xf59e0b;
+    if (id === selectedNode) color = 0xef4444;
+
+    const mat = new THREE.MeshStandardMaterial({
+      color, emissive: color, emissiveIntensity: 0.6,
+      metalness: 0.4, roughness: 0.35
+    });
+    const mesh = new THREE.Mesh(sphereGeo.clone(), mat);
+    mesh.position.set(px, py, 0);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    node3dMeshes[id] = mesh;
+
+    const sprite = makeTextSprite(id, color, 0.9);
+    sprite.position.set(px, py + 22, 0);
+    scene.add(sprite);
+    mesh._label = sprite;
+    labelSprites.push(sprite);
+
+    if (src || snk) {
+      const ringGeo = new THREE.RingGeometry(13, 16, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: src ? 0x10b981 : 0xf59e0b, side: THREE.DoubleSide,
+        transparent: true, opacity: 0.7
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.set(px, py, 0.1);
+      scene.add(ring);
+      mesh._ring = ring;
+    }
+  });
+
+  const results = getPressureResults();
+
+  connections.forEach((c, i) => {
+    const n1 = nodes[c.from], n2 = nodes[c.to];
+    if (!n1 || !n2) return;
+
+    const px1 = n1.x - cx, py1 = -(n1.y - cy);
+    const px2 = n2.x - cx, py2 = -(n2.y - cy);
+
+    const radius = Math.max(2.5, c.seg.diameter * 60);
+    let color = 0x06b6d4;
+    let emissive = 0x06b6d4;
+    let emissiveIntensity = 0.4;
+
+    if (results && results.R && results.Q) {
+      const q = results.Q[i] || 0;
+      const r = results.R[i] || 0;
+      const dp = Math.abs(r * q * Math.abs(q));
+      const maxDp = results.maxDp || 1;
+      const t2 = maxDp > 0 ? Math.min(1, Math.log10(dp + 1) / Math.log10(maxDp + 1)) : 0;
+      color = lerpColor(0x10b981, 0xef4444, t2);
+      emissive = color;
+      emissiveIntensity = 0.3 + t2 * 0.6;
+    }
+
+    if (i === selectedConnIdx) {
+      color = 0x8b5cf6;
+      emissive = 0x8b5cf6;
+      emissiveIntensity = 1.3;
+    }
+
+    const mat = new THREE.MeshStandardMaterial({
+      color, emissive, emissiveIntensity, metalness: 0.6, roughness: 0.3
+    });
+
+    const start = new THREE.Vector3(px1, py1, 0);
+    const end = new THREE.Vector3(px2, py2, 0);
+    const dir = new THREE.Vector3().subVectors(end, start);
+    const len = dir.length();
+    if (len < 0.1) return;
+
+    const geo = new THREE.CylinderGeometry(radius, radius, len, 16, 1, false);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(start.clone().add(end).multiplyScalar(0.5));
+    const up = new THREE.Vector3(0, 1, 0);
+    const quat = new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize());
+    mesh.quaternion.copy(quat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+
+    const arrowSize = radius * 1.8;
+    const coneGeo = new THREE.ConeGeometry(arrowSize, arrowSize * 2, 12);
+    const coneMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff, emissive: color, emissiveIntensity: 1.0,
+      metalness: 0.8, roughness: 0.2
+    });
+    const cone = new THREE.Mesh(coneGeo, coneMat);
+    const arrPos = start.clone().lerp(end, 0.65);
+    cone.position.copy(arrPos);
+    cone.quaternion.copy(quat);
+    cone.castShadow = true;
+    scene.add(cone);
+
+    const mid = start.clone().lerp(end, 0.5);
+    const labelText = `${c.seg.id} • L:${c.seg.length.toFixed(1)}m D:${(c.seg.diameter*1000).toFixed(0)}mm`;
+    const sprite = makeTextSprite(labelText, color, 1.0);
+    sprite.position.set(mid.x, mid.y + 25, 0);
+    scene.add(sprite);
+    labelSprites.push(sprite);
+
+    pipe3dMeshes.push({ mesh, cone, label: sprite, conn: c, idx: i });
+  });
+
+  if (controls3d && Object.keys(nodes).length === 1) {
+    camera.position.set(0, 300, 500);
+    controls3d.target.set(0, 0, 0);
+    controls3d.update();
+  } else if (controls3d) {
+    controls3d.target.set(0, 0, 0);
+    controls3d.update();
+  }
+}
+
+function makeTextSprite(text, color = 0xffffff, scale = 1) {
+  const c = document.createElement('canvas');
+  const cx = c.getContext('2d');
+  c.width = 512; c.height = 128;
+
+  cx.fillStyle = 'rgba(15,23,42,0.92)';
+  cx.strokeStyle = '#' + color.toString(16).padStart(6, '0');
+  cx.lineWidth = 4;
+  roundRectPath(cx, 10, 24, 492, 80, 20);
+  cx.fill(); cx.stroke();
+
+  cx.font = 'bold 42px Segoe UI, sans-serif';
+  cx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+  cx.textAlign = 'center';
+  cx.textBaseline = 'middle';
+  cx.fillText(text, 256, 64);
+
+  const texture = new THREE.CanvasTexture(c);
+  texture.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({
+    map: texture, transparent: true, depthTest: false, depthWrite: false
+  });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(80 * scale, 20 * scale, 1);
+  return sprite;
+}
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function lerpColor(c1, c2, t) {
+  const r1 = (c1 >> 16) & 0xff, g1 = (c1 >> 8) & 0xff, b1 = c1 & 0xff;
+  const r2 = (c2 >> 16) & 0xff, g2 = (c2 >> 8) & 0xff, b2 = c2 & 0xff;
+  const r = Math.round(r1 + (r2 - r1) * t);
+  const g = Math.round(g1 + (g2 - g1) * t);
+  const b = Math.round(b1 + (b2 - b1) * t);
+  return (r << 16) | (g << 8) | b;
+}
+function getPressureResults() {
+  if (!connections.length) return null;
+  try {
+    const { Q, R } = hardyCross();
+    const maxDp = Math.max(...connections.map((c, i) => Math.abs(R[i] * Q[i] * Math.abs(Q[i]))), 0.001);
+    return { Q, R, maxDp };
+  } catch (e) { return null; }
+}
+
+// ================= VIEW SWITCH =================
+function switchView(v) {
+  currentView = v;
+  const c2d = document.getElementById('pipeCanvas');
+  const c3d = document.getElementById('threeCanvas');
+  const btn2d = document.getElementById('btn2d');
+  const btn3d = document.getElementById('btn3d');
+
+  remove3DOverlays();
+
+  if (v === '2d') {
+    c2d.style.display = 'block';
+    c3d.style.display = 'none';
+    btn2d.classList.add('active');
+    btn3d.classList.remove('active');
+    resizeCanvas();
+    setStatus(t('status.view2d'), 'info');
+  } else {
+    c2d.style.display = 'none';
+    c3d.style.display = 'block';
+    btn3d.classList.add('active');
+    btn2d.classList.remove('active');
+    setTimeout(() => {
+      if (!init3D()) return;
+      resize3D();
+      rebuild3D();
+      _last3DHash = compute3DHash();
+      add3DOverlays();
+      setStatus(t('status.view3d'), 'info');
+    }, 100);
+  }
+}
+
+function add3DOverlays() {
+  const wrap = document.getElementById('canvasWrap');
+  document.querySelectorAll('.view-3d-overlay, .view-3d-legend, .view-3d-controls').forEach(el => el.remove());
+
+  const overlay = document.createElement('div');
+  overlay.className = 'view-3d-overlay';
+  overlay.innerHTML = `<div class="view-3d-badge">${t('view3d.badge')}</div>`;
+  wrap.appendChild(overlay);
+
+  const legend = document.createElement('div');
+  legend.className = 'view-3d-legend';
+  legend.innerHTML = `
+    <div class="view-3d-legend-title">${t('legend.title')}</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#10b981;color:#10b981"></div>${t('legend.source')}</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f59e0b;color:#f59e0b"></div>${t('legend.sink')}</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#06b6d4;color:#06b6d4"></div>${t('legend.node')}</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6;color:#8b5cf6"></div>${t('legend.selected')}</div>
+    <div style="margin-top:8px;font-size:9px;color:#94a3b8">${t('legend.pressure')}</div>
+    <div class="legend-gradient"></div>
+    <div style="display:flex;justify-content:space-between;font-size:9px">
+      <span style="color:#10b981">${t('legend.low')}</span>
+      <span style="color:#ef4444">${t('legend.high')}</span>
+    </div>
+  `;
+  wrap.appendChild(legend);
+
+  const controls = document.createElement('div');
+  controls.className = 'view-3d-controls';
+  controls.innerHTML = `
+    <button class="view-3d-btn" onclick="view3DTop()">${t('view3d.top')}</button>
+    <button class="view-3d-btn" onclick="view3DIso()">${t('view3d.iso')}</button>
+    <button class="view-3d-btn" onclick="view3DFront()">${t('view3d.front')}</button>
+    <button class="view-3d-btn" onclick="toggle3DAutoRotate()">${autoRotate3d ? t('view3d.stopRotate') : t('view3d.autoRotate')}</button>
+    <button class="view-3d-btn" onclick="forceRebuild3D();toast(t('toast.sceneRefreshed'),'info')">${t('view3d.refresh')}</button>
+  `;
+  wrap.appendChild(controls);
+}
+
+function resize3D() {
+  if (!renderer || !camera) return;
+  const canvas3d = document.getElementById('threeCanvas');
+  const rect = canvas3d.parentElement.getBoundingClientRect();
+  if (rect.width < 10 || rect.height < 10) return;
+  camera.aspect = rect.width / rect.height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(rect.width, rect.height);
+}
+
+function view3DTop() {
+  if (!camera) return;
+  const d = camera.position.length() || 500;
+  camera.position.set(0, d, 0.01);
+  camera.lookAt(0, 0, 0);
+  if (controls3d) { controls3d.target.set(0,0,0); controls3d.update(); }
+}
+function view3DIso() {
+  if (!camera) return;
+  const d = camera.position.length() || 500;
+  camera.position.set(d*0.6, d*0.5, d*0.6);
+  camera.lookAt(0, 0, 0);
+  if (controls3d) { controls3d.target.set(0,0,0); controls3d.update(); }
+}
+function view3DFront() {
+  if (!camera) return;
+  const d = camera.position.length() || 500;
+  camera.position.set(0, 0, d);
+  camera.lookAt(0, 0, 0);
+  if (controls3d) { controls3d.target.set(0,0,0); controls3d.update(); }
+}
+function toggle3DAutoRotate() {
+  autoRotate3d = !autoRotate3d;
+  if (controls3d) {
+    controls3d.autoRotate = autoRotate3d;
+    controls3d.autoRotateSpeed = 1.5;
+  }
+  document.querySelectorAll('.view-3d-btn').forEach(b => {
+    if (b.textContent.includes('Rotate') || b.textContent.includes('Rotasi')) {
+      b.textContent = autoRotate3d ? t('view3d.stopRotate') : t('view3d.autoRotate');
+    }
+  });
+  toast(autoRotate3d ? t('toast.autoRotateOn') : t('toast.autoRotateOff'), 'info');
+}
+
+// ================= MODE =================
+function setMode(m) {
+  mode = m;
+  selectedNode = null;
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === m);
+  });
+  updateBannerForMode();
+  drawCanvas();
+}
+
+// ================= MODAL =================
+function openPipeModal(type, from, to, dist, connIdx = null) {
+  modalContext = { type, from, to, dist, connIdx };
+  const modal = document.getElementById('pipeModal');
+  const title = document.getElementById('modalTitle');
+  const subtitle = document.getElementById('modalSubtitle');
+  const saveBtn = document.getElementById('modalSaveBtn');
+
+  if (type === 'create') {
+    title.textContent = t('modal.title.new');
+    subtitle.innerHTML = `${t('modal.between')} <b>${from}</b> → <b>${to}</b> • ${t('modal.canvasDist')} <b>${dist.toFixed(2)} m</b>`;
+    saveBtn.textContent = t('modal.btn.create');
+    m_id.value = `${from}-${to}`;
+    m_length.value = dist.toFixed(2);
+    m_diameter.value = '0.100';
+    m_roughness.value = '0.000045';
+    m_density.value = '1000';
+    m_viscosity.value = '0.001';
+    m_temperature.value = '25';
+    m_kloss.value = '0';
+    m_qty.value = '0';
+    m_flow.value = '0';
+    m_massflow.value = '0';
+    m_pressure.value = '0';
+    m_fixed.checked = false;
+    m_fitting.value = 'None (manual)';
+  } else {
+    const c = connections[connIdx];
+    const s = c.seg;
+    title.textContent = `${t('modal.title.edit')}: ${s.id}`;
+    subtitle.innerHTML = `${t('modal.between')} <b>${c.from}</b> → <b>${c.to}</b>`;
+    saveBtn.textContent = t('modal.btn.update');
+    m_id.value = s.id;
+    m_length.value = s.length;
+    m_diameter.value = s.diameter;
+    m_roughness.value = s.roughness;
+    m_density.value = s.density;
+    m_viscosity.value = s.viscosity;
+    m_temperature.value = s.temperature;
+    m_kloss.value = s.k_loss;
+    m_qty.value = s.qty_fitting;
+    m_flow.value = s.flow_rate;
+    m_massflow.value = s.mass_flow;
+    m_pressure.value = s.pressure;
+    m_fixed.checked = s.fixed;
+    m_fitting.value = s.fitting || 'None (manual)';
+  }
+  document.getElementById('hintLength').textContent = (dist || 0).toFixed(2);
+  updateKTotal();
+  updateFixedCheckUI();
+  buildPresetChips();
+  modal.classList.add('show');
+  setTimeout(() => m_length.focus(), 100);
+}
+
+function closePipeModal() {
+  document.getElementById('pipeModal').classList.remove('show');
+  modalContext = null;
+  selectedNode = null;
+  drawCanvas();
+}
+
+function savePipeModal() {
+  if (!modalContext) return;
+  const id = m_id.value.trim() || `${modalContext.from}-${modalContext.to}`;
+  const length = parseFloat(m_length.value);
+  const diameter = parseFloat(m_diameter.value);
+  const density = parseFloat(m_density.value);
+  const viscosity = parseFloat(m_viscosity.value);
+
+  let errors = [];
+  m_length.classList.toggle('error', !(length > 0));
+  m_diameter.classList.toggle('error', !(diameter > 0));
+  m_density.classList.toggle('error', !(density > 0));
+  m_viscosity.classList.toggle('error', !(viscosity > 0));
+  if (!(length > 0)) errors.push('Length');
+  if (!(diameter > 0)) errors.push('Diameter');
+  if (!(density > 0)) errors.push('Density');
+  if (!(viscosity > 0)) errors.push('Viscosity');
+  if (errors.length) {
+    showModalAlert(`${t('alert.modalWarning')}: ${errors.join(', ')}`, 'warning');
+    return;
+  }
+
+  const fitting = m_fitting.value;
+  const kAuto = ASHRAE_K[fitting];
+  const kManual = parseFloat(m_kloss.value) || 0;
+  const kLoss = (kAuto === null || kAuto === undefined) ? kManual : kAuto;
+
+  const seg = {
+    id, length, diameter, density, viscosity,
+    k_loss: kLoss,
+    roughness: parseFloat(m_roughness.value) || 0,
+    fixed: m_fixed.checked,
+    fitting,
+    qty_fitting: parseInt(m_qty.value) || 0,
+    temperature: parseFloat(m_temperature.value) || 25,
+    flow_rate: parseFloat(m_flow.value) || 0,
+    mass_flow: parseFloat(m_massflow.value) || 0,
+    pressure: parseFloat(m_pressure.value) || 0
+  };
+
+  if (modalContext.type === 'create') {
+    connections.push({ from: modalContext.from, to: modalContext.to, seg });
+    selectedConnIdx = connections.length - 1;
+    toast(`${t('toast.pipeCreated')}: ${id}`, 'success');
+  } else {
+    connections[modalContext.connIdx].seg = seg;
+    selectedConnIdx = modalContext.connIdx;
+    toast(`${t('toast.pipeUpdated')}: ${id}`, 'success');
+  }
+
+  markUnsaved();
+  selectedNode = null;
+  loadConnToForm(selectedConnIdx);
+  renderTable();
+  drawCanvas();
+  closePipeModal();
+  // 🔥 Force rebuild 3D setelah modal tutup
+  if (threeInitialized) {
+    setTimeout(() => forceRebuild3D(), 50);
+  }
+}
+
+function openFullModalForSelected() {
+  if (selectedConnIdx === null || selectedConnIdx < 0) {
+    toast(t('toast.selectPipe'), 'warning');
+    return;
+  }
+  const c = connections[selectedConnIdx];
+  const n1 = nodes[c.from], n2 = nodes[c.to];
+  const dist = n1 && n2 ? Math.hypot(n2.x - n1.x, n2.y - n1.y) : c.seg.length;
+  openPipeModal('edit', c.from, c.to, dist, selectedConnIdx);
+}
+
+function showModalAlert(text, type = 'warning') {
+  const el = document.getElementById('modalAlert');
+  const txt = document.getElementById('modalAlertText');
+  el.className = 'modal-alert ' + type;
+  el.style.display = 'flex';
+  txt.textContent = text;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+function updateKTotal() {
+  const fitting = m_fitting.value;
+  const kAuto = ASHRAE_K[fitting];
+  const kManual = parseFloat(m_kloss.value) || 0;
+  const kUnit = (kAuto === null || kAuto === undefined) ? kManual : kAuto;
+  const qty = parseInt(m_qty.value) || 0;
+  m_ktotal.value = (kUnit * qty).toFixed(3);
+}
+function updateFixedCheckUI() {
+  document.getElementById('modalFixedCheck').classList.toggle('checked', m_fixed.checked);
+}
+function buildPresetChips() {
+  const container = document.getElementById('presetChips');
+  container.innerHTML = `<span style="font-size:9px;color:var(--muted);margin-right:4px">${t('preset.label')}</span>`;
+  const presets = [
+    ['PVC 50mm', 0.05, 0.0000015, 1000, 0.001],
+    ['PVC 100mm', 0.1, 0.0000015, 1000, 0.001],
+    ['Steel 100mm', 0.1, 0.000045, 1000, 0.001],
+    ['Steel 200mm', 0.2, 0.000045, 1000, 0.001],
+    ['Copper 25mm', 0.025, 0.0000015, 1000, 0.001],
+    ['Concrete 500mm', 0.5, 0.0003, 1000, 0.001]
+  ];
+  presets.forEach(([name, d, r, rho, mu]) => {
+    const chip = document.createElement('div');
+    chip.className = 'preset-chip';
+    chip.textContent = name;
+    chip.onclick = () => {
+      m_diameter.value = d;
+      m_roughness.value = r;
+      m_density.value = rho;
+      m_viscosity.value = mu;
+      document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      updateKTotal();
+      toast(`${t('toast.presetApplied')}: ${name}`, 'info');
+    };
+    container.appendChild(chip);
+  });
+}
+
+// ================= FORM =================
+function loadConnToForm(i) {
+  const c = connections[i];
+  if (!c) return;
+  const s = c.seg;
+  document.getElementById('propTitle').textContent = `${t('panel.props')} • ${s.id}`;
+  f_id.value = s.id; f_length.value = s.length; f_diameter.value = s.diameter;
+  f_flow.value = s.flow_rate; f_density.value = s.density; f_viscosity.value = s.viscosity;
+  f_kloss.value = s.k_loss; f_qty.value = s.qty_fitting; f_temp.value = s.temperature;
+  f_mass.value = s.mass_flow; f_pressure.value = s.pressure; f_rough.value = s.roughness;
+  f_fitting.value = s.fitting || 'None (manual)';
+  f_fixed.checked = s.fixed;
+}
+
+function saveConnection() {
+  if (selectedConnIdx === null || selectedConnIdx < 0) {
+    toast(t('toast.noSelection'), 'warning');
+    return;
+  }
+  try {
+    const length = parseFloat(f_length.value);
+    const diameter = parseFloat(f_diameter.value);
+    const density = parseFloat(f_density.value);
+    const viscosity = parseFloat(f_viscosity.value);
+    if (!(length > 0) || !(diameter > 0) || !(density > 0) || !(viscosity > 0))
+      throw new Error(`Length, Diameter, Density, Viscosity ${t('toast.mustBePositive')}`);
+    const fit = f_fitting.value;
+    const kAuto = ASHRAE_K[fit];
+    const kManual = parseFloat(f_kloss.value);
+    const kLoss = (kAuto === null || kAuto === undefined)
+      ? (isNaN(kManual) ? 0 : kManual) : kAuto;
+    const seg = {
+      id: f_id.value || connections[selectedConnIdx].seg.id,
+      length, diameter,
+      flow_rate: parseFloat(f_flow.value) || 0,
+      density, viscosity, k_loss: kLoss,
+      roughness: parseFloat(f_rough.value) || 0,
+      fixed: f_fixed.checked,
+      fitting: fit,
+      qty_fitting: parseInt(f_qty.value) || 0,
+      temperature: parseFloat(f_temp.value) || 25,
+      mass_flow: parseFloat(f_mass.value) || 0,
+      pressure: parseFloat(f_pressure.value) || 0
+    };
+    connections[selectedConnIdx].seg = seg;
+    markUnsaved();
+    renderTable();
+    syncViews();
+    toast(t('toast.propsUpdated'), 'success');
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+function deleteSelected() {
+  if (selectedNode) {
+    connections = connections.filter(c => c.from !== selectedNode && c.to !== selectedNode);
+    delete nodes[selectedNode];
+    selectedNode = null;
+    markUnsaved();
+    renderTable();
+    syncViews();
+    toast(t('toast.nodeDeleted'), 'warning');
+  } else if (selectedConnIdx !== null && selectedConnIdx >= 0) {
+    connections.splice(selectedConnIdx, 1);
+    selectedConnIdx = null;
+    markUnsaved();
+    renderTable();
+    syncViews();
+    toast(t('toast.pipeDeleted'), 'warning');
+  } else {
+    toast(t('toast.noSelection'), 'warning');
+  }
+}
+
+// ================= TABLE =================
+function renderTable() {
+  const tbody = document.getElementById('segTable');
+  tbody.innerHTML = '';
+  connections.forEach((c, i) => {
+    const s = c.seg;
+    const tr = document.createElement('tr');
+    if (i === selectedConnIdx) tr.classList.add('selected');
+    tr.onclick = () => {
+      selectedConnIdx = i;
+      selectedNode = null;
+      loadConnToForm(i);
+      drawCanvas(); renderTable();
+      if (threeInitialized) forceRebuild3D();
+    };
+    tr.ondblclick = () => {
+      const n1 = nodes[c.from], n2 = nodes[c.to];
+      const dist = n1 && n2 ? Math.hypot(n2.x - n1.x, n2.y - n1.y) : s.length;
+      openPipeModal('edit', c.from, c.to, dist, i);
+    };
+    tr.innerHTML = `
+      <td>${s.id}</td>
+      <td>${c.from}→${c.to}</td>
+      <td style="color:#f59e0b;font-weight:700">${s.length.toFixed(2)}</td>
+      <td>${s.diameter.toFixed(3)}</td>
+      <td class="flow-cell">—</td>
+      <td class="speed-cell">—</td>
+      <td>${s.density.toFixed(0)}</td>
+      <td>${s.k_loss.toFixed(2)}</td>
+      <td>${s.fitting}</td>
+      <td>${s.qty_fitting}</td>
+      <td>${s.fixed ? '✓' : '—'}</td>
+      <td class="dp-cell">—</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('kpiSeg').textContent = connections.length;
+}
+
+// ================= CALC =================
+function calcResistance(length, diameter, density, viscosity, kLoss = 0, roughness = 0) {
+  if (diameter <= 0) return 1e10;
+  const A = Math.PI * (diameter / 2) ** 2;
+  const v = 1.0;
+  const Re = viscosity !== 0 ? density * v * diameter / viscosity : 1e5;
+  let f;
+  if (Re < 2300) f = 64.0 / Re;
+  else if (roughness > 0)
+    f = 0.25 / Math.pow(Math.log10(roughness / (3.7 * diameter) + 5.74 / Math.pow(Re, 0.9)), 2);
+  else f = 0.02;
+  return f * (length / diameter) * (0.5 * density / A ** 2)
+       + kLoss * (0.5 * density / A ** 2);
+}
+function hardyCross(iterMax = 200, tol = 1e-8) {
+  if (!connections.length) return { Q: [], R: [] };
+  const R = connections.map(c => {
+    const s = c.seg;
+    const k = (s.k_loss ?? 0) * (s.qty_fitting ?? 0);
+    return calcResistance(s.length, s.diameter, s.density, s.viscosity, k, s.roughness);
+  });
+  const freeIdx = connections.map((c, i) => c.seg.fixed ? -1 : i).filter(i => i >= 0);
+  const invSum = freeIdx.length
+    ? freeIdx.reduce((s, i) => s + (R[i] > 0 ? 1 / R[i] : 0), 0) || 1
+    : 1;
+  const Q = connections.map((c, i) =>
+    c.seg.fixed ? (c.seg.flow_rate || 0)
+                : (R[i] > 0 ? 1 / R[i] / invSum : 0));
+  for (let it = 0; it < iterMax; it++) {
+    let num = 0, den = 0;
+    for (let i = 0; i < connections.length; i++) {
+      const q = Q[i], r = R[i];
+      const hL = r * q * Math.abs(q);
+      const dh = q !== 0 ? 2 * r * Math.abs(q) : 2 * r * 1e-6;
+      num += hL; den += dh;
+    }
+    if (den === 0) break;
+    const dQ = -num / den;
+    freeIdx.forEach(i => Q[i] += dQ);
+    if (Math.abs(dQ) < tol) break;
+  }
+  return { Q, R };
+}
+function isSource(id) {
+  return connections.some(c => c.from === id) && !connections.some(c => c.to === id);
+}
+function isSink(id) {
+  return connections.some(c => c.to === id) && !connections.some(c => c.from === id);
+}
+
+// ================= CHART =================
+let pressureChart = null;
+function initChart() {
+  const c = document.getElementById('pressureChart').getContext('2d');
+  pressureChart = new Chart(c, {
+    type: 'line',
+    data: { labels: [], datasets: [{
+      label: t('chart.label'), data: [],
+      borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.15)',
+      borderWidth: 2.5, fill: true, tension: 0.35,
+      pointBackgroundColor: '#8b5cf6', pointBorderColor: '#fff',
+      pointBorderWidth: 2, pointRadius: 6, pointHoverRadius: 9
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#1e293b', borderColor: '#06b6d4', borderWidth: 1, titleColor: '#06b6d4', bodyColor: '#f1f5f9' }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: t('chart.xaxis'), color: '#94a3b8', font: {size:10} },
+          grid: { color: 'rgba(51,65,85,0.4)' },
+          ticks: { color: '#94a3b8', font: {size:9} }
+        },
+        y: {
+          title: { display: true, text: t('chart.yaxis'), color: '#94a3b8', font: {size:10} },
+          grid: { color: 'rgba(51,65,85,0.4)' },
+          ticks: { color: '#94a3b8', font: {size:9} }
+        }
+      }
+    }
+  });
+}
+function findPath(start, end, path = []) {
+  path = [...path, start];
+  if (start === end) return path;
+  if (!nodes[start]) return null;
+  for (const c of connections) {
+    if (c.from === start && !path.includes(c.to)) {
+      const p = findPath(c.to, end, path);
+      if (p) return p;
+    }
+  }
+  return null;
+}
+function calculate() {
+  if (!connections.length) { toast(t('toast.noPipe'), 'warning'); return; }
+  const { Q, R } = hardyCross();
+  let totalFlow = 0, avgSpeed = 0, maxDp = 0;
+  const rows = document.querySelectorAll('#segTable tr');
+  Q.forEach((q, i) => {
+    const s = connections[i].seg;
+    const A = Math.PI * (s.diameter / 2) ** 2;
+    const speed = A > 0 ? q / A : 0;
+    totalFlow += Math.abs(q);
+    avgSpeed += speed;
+    const dp = R[i] * q * Math.abs(q);
+    maxDp = Math.max(maxDp, Math.abs(dp));
+    if (rows[i]) {
+      rows[i].querySelector('.flow-cell').textContent = q.toFixed(5);
+      rows[i].querySelector('.speed-cell').textContent = speed.toFixed(3);
+      rows[i].querySelector('.dp-cell').textContent = dp.toFixed(2);
+    }
+  });
+  avgSpeed = avgSpeed / connections.length || 0;
+  document.getElementById('kpiFlow').textContent = totalFlow.toFixed(3);
+  document.getElementById('kpiSpeed').textContent = avgSpeed.toFixed(3);
+  document.getElementById('kpiDp').textContent = maxDp.toFixed(2);
+
+  const src = Object.keys(nodes).find(isSource);
+  const snk = Object.keys(nodes).find(isSink);
+  const positions = [0], pressures = [0];
+  if (src && snk) {
+    const path = findPath(src, snk);
+    if (path) {
+      for (let i = 0; i < path.length - 1; i++) {
+        const from = path[i], to = path[i + 1];
+        const ci = connections.findIndex(c => c.from === from && c.to === to);
+        if (ci < 0) continue;
+        const s = connections[ci].seg;
+        const dp = R[ci] * Q[ci] * Math.abs(Q[ci]);
+        positions.push(positions[positions.length - 1] + s.length);
+        pressures.push(pressures[pressures.length - 1] - dp);
+      }
+    }
+  }
+  pressureChart.data.labels = positions.map(p => p.toFixed(2));
+  pressureChart.data.datasets[0].data = pressures;
+  pressureChart.update();
+
+  if (threeInitialized) forceRebuild3D();
+
+  setStatus(`${t('status.calcDone')} — ${connections.length} ${t('status.segments')}, ${t('status.totalFlow')} ${totalFlow.toFixed(3)} m³/s`, 'success');
+  toast(t('toast.calcSuccess'), 'success');
+}
+
+// ================= SAVE / LOAD =================
+function saveJSON() {
+  if (!connections.length && !Object.keys(nodes).length) {
+    toast(t('toast.noDataSave'), 'warning');
+    return;
+  }
+  const data = { nodes, connections, metadata: { version: '5.1-web', lang: currentLang, saved_at: new Date().toISOString() } };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `RAflow_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  clearUnsaved();
+  toast(t('toast.fileSaved'), 'success');
+}
+function loadJSON(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      nodes = data.nodes || {};
+      connections = data.connections || [];
+      connections = connections.map(c => Array.isArray(c) ? { from: c[0], to: c[1], seg: c[2] } : c);
+      const ids = Object.keys(nodes).filter(k => k.startsWith('Node')).map(k => parseInt(k.slice(4)) || 0);
+      nodeCounter = ids.length ? Math.max(...ids) + 1 : 1;
+      selectedConnIdx = null; selectedNode = null;
+      clearUnsaved();
+      renderTable();
+      syncViews();
+      toast(t('toast.fileLoaded'), 'success');
+    } catch (err) { toast(`${t('toast.fileLoadError')}: ${err.message}`, 'error'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+function exportExcel() {
+  if (!connections.length) { toast(t('toast.noDataExport'), 'warning'); return; }
+  const { Q, R } = hardyCross();
+  const rows = connections.map((c, i) => {
+    const s = c.seg;
+    const A = Math.PI * (s.diameter / 2) ** 2;
+    const speed = A > 0 ? Q[i] / A : 0;
+    return {
+      'From Node': c.from, 'To Node': c.to, 'ID': s.id,
+      'Length (m)': s.length, 'Diameter (m)': s.diameter,
+      'Flow Rate (m³/s)': Q[i], 'Speed (m/s)': speed,
+      'Density (kg/m³)': s.density, 'Viscosity (Pa·s)': s.viscosity,
+      'K_loss': s.k_loss, 'Fitting': s.fitting, 'Qty Fitting': s.qty_fitting,
+      'Fixed': s.fixed ? 'Yes' : 'No', 'Temperature (°C)': s.temperature,
+      'Mass Flow (kg/s)': s.mass_flow, 'Pressure (Pa)': s.pressure,
+      'Roughness (m)': s.roughness,
+      'Total ΔP (Pa)': R[i] * Q[i] * Math.abs(Q[i])
+    };
+  });
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Segments');
+  XLSX.writeFile(wb, `RAflow_${Date.now()}.xlsx`);
+  toast(t('toast.exported'), 'success');
+}
+
+function clearNetwork() {
+  if (!confirm(t('confirm.clearNetwork'))) return;
+  nodes = {}; connections = [];
+  nodeCounter = 1; selectedNode = null; selectedConnIdx = null;
+  markUnsaved();
+  renderTable();
+  syncViews();
+  ['kpiFlow', 'kpiSpeed', 'kpiDp'].forEach(id => document.getElementById(id).textContent = '0.000');
+  document.getElementById('kpiSeg').textContent = '0';
+  pressureChart.data.labels = []; pressureChart.data.datasets[0].data = [];
+  pressureChart.update();
+  toast(t('toast.networkCleared'), 'warning');
+}
+
+// ================= HELPERS =================
+function markUnsaved() { unsaved = true; document.getElementById('unsavedDot').textContent = '●'; }
+function clearUnsaved() { unsaved = false; document.getElementById('unsavedDot').textContent = ''; }
+function setStatus(msg, type = 'info') {
+  const el = document.getElementById('statusBar');
+  const icons = { info: 'ℹ️', success: '✅', warning: '⚠️', error: '❌' };
+  el.textContent = `${icons[type] || 'ℹ️'} ${msg}`;
+  el.className = 'status-bar ' + (type !== 'info' ? type : '');
+}
+function toast(msg, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  const icons = { info: 'ℹ️', success: '✅', warning: '⚠️', error: '❌' };
+  el.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+  container.appendChild(el);
+  setTimeout(() => { el.classList.add('hide'); setTimeout(() => el.remove(), 300); }, 3000);
+}
+
+// ================= INIT =================
+window.addEventListener('DOMContentLoaded', () => {
+  const savedLang = localStorage.getItem('RAflow_lang') || 'id';
+  currentLang = savedLang;
+  document.getElementById('btnID').classList.toggle('active', savedLang === 'id');
+  document.getElementById('btnEN').classList.toggle('active', savedLang === 'en');
+
+  [document.getElementById('f_fitting'), document.getElementById('m_fitting')].forEach(sel => {
+    Object.keys(ASHRAE_K).forEach(k => {
+      const o = document.createElement('option');
+      o.value = k; o.textContent = k;
+      sel.appendChild(o);
+    });
+  });
+
+  m_fitting.addEventListener('change', () => {
+    if (ASHRAE_K[m_fitting.value] !== null && ASHRAE_K[m_fitting.value] !== undefined) {
+      m_kloss.value = ASHRAE_K[m_fitting.value];
+      m_kloss.disabled = true;
+    } else {
+      m_kloss.disabled = false;
+    }
+    updateKTotal();
+  });
+  m_kloss.addEventListener('input', updateKTotal);
+  m_qty.addEventListener('input', updateKTotal);
+  m_fixed.addEventListener('change', updateFixedCheckUI);
+
+  document.getElementById('pipeModal').addEventListener('click', e => {
+    if (e.target.id === 'pipeModal') closePipeModal();
+  });
+
+  resizeCanvas();
+  initChart();
+  renderTable();
+  applyTranslations();
+
+  // ================= 🔥 3D STATE WATCHER =================
+  // Auto-rebuild 3D kalau ada perubahan state (apapun penyebabnya)
+  setInterval(() => {
+    if (currentView !== '3d') return;
+    if (!threeInitialized || !scene) return;
+
+    const hash = compute3DHash();
+    if (hash !== _last3DHash) {
+      console.log('🔄 3D watcher: state changed — rebuilding');
+      _last3DHash = hash;
+      rebuild3D();
+    }
+  }, 300);
+
+  document.addEventListener('keydown', e => {
+    const modalOpen = document.getElementById('pipeModal').classList.contains('show');
+    if (modalOpen) {
+      if (e.key === 'Escape') { e.preventDefault(); closePipeModal(); }
+      else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); savePipeModal(); }
+      return;
+    }
+    if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveJSON(); }
+    else if (e.key === 'Delete') { deleteSelected(); }
+    else if (e.key === 'F5') { e.preventDefault(); calculate(); }
+    else if (e.key === '1') switchView('2d');
+    else if (e.key === '2') switchView('3d');
+  });
+
+  console.log('🚀 RAFLOW v alpha ready');
+});
+</script>
+</body>
+</html>
